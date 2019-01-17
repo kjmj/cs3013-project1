@@ -32,6 +32,8 @@ int main(int argc, char **argv) {
     if (pid > 0) {
         // parent process
         wait(NULL);
+        printChildStatistics();
+
     } else if (pid == 0) {
         // child process
 
@@ -40,11 +42,13 @@ int main(int argc, char **argv) {
 
             char *const args[] = {"./ls", '\0'};
             execv("/usr/bin/whoami", args);
+
         } else if (input == 1) { //last
             printf("-- Last Logins --\n");
 
             char *const args[] = {"./last", '\0'};
             execv("/usr/bin/last", args);
+
         } else if (input == 2) { // ls
             printf("-- Directory Listing --\n");
 
@@ -61,7 +65,6 @@ int main(int argc, char **argv) {
             nullTerminateStr(pathBuff);
             printf("\n");
 
-
             if (strlen(argBuff) == 0 && strlen(pathBuff) == 0) { // user specified no args or path
                 char *const args[] = {"./ls", '\0'};
                 execv("/bin/ls", args);
@@ -75,10 +78,12 @@ int main(int argc, char **argv) {
                 char *const args[] = {"./ls", argBuff, pathBuff, '\0'};
                 execv("/bin/ls", args);
             }
+
         } else {
             printf("Incorrect input\n");
             return (EXIT_FAILURE);
         }
+
 
         exit(EXIT_FAILURE); // execv returned, meaning error
     } else {
@@ -116,8 +121,20 @@ void splitByDelim(char *str, char *delim) {
     // delimiters present in str[].
     while (token != NULL)
     {
-        printf("%s\n", token);
+//        printf("%s\n", token);
         token = strtok(NULL, delim);
     }
+}
+
+void printChildStatistics() {
+
+    struct rusage childUsage;
+    getrusage(RUSAGE_CHILDREN, &childUsage);
+
+    printf("\n");
+    printf("-- Statistics ---\n");
+//    printf("Elapsed Time: %d\n", );
+    printf("Page Faults: %lu\n", childUsage.ru_minflt);
+    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt);
 }
 

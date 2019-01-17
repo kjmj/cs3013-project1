@@ -11,7 +11,11 @@
 #include <limits.h>
 #include <errno.h>
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 void nullTerminateStr(char * str);
 void splitByDelim(char *str, char *delim);
+void printChildStatistics();
 
 #endif
