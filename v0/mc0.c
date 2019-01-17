@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
             printf("Arguments?: ");
             fgets(argBuff, sizeof argBuff, stdin);
             nullTerminateStr(argBuff);
+            splitByDelim(argBuff, " ");
 
             printf("Path?: ");
             fgets(pathBuff, sizeof pathBuff, stdin);
@@ -99,6 +100,24 @@ void nullTerminateStr(char *str) {
 
     if (length > 0) {
         str[length - 1] = '\0';
+    }
+}
+
+/**
+ * Splits the given string by a delimiter
+ * @param str
+ * @param delim
+ */
+void splitByDelim(char *str, char *delim) {
+    // Returns first token
+    char *token = strtok(str, delim);
+
+    // Keep printing tokens while one of the
+    // delimiters present in str[].
+    while (token != NULL)
+    {
+        printf("%s\n", token);
+        token = strtok(NULL, delim);
     }
 }
 

@@ -12,5 +12,6 @@
 #include <errno.h>
 
 void nullTerminateStr(char * str);
+void splitByDelim(char *str, char *delim);
 
 #endif
