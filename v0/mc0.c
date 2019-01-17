@@ -2,6 +2,68 @@
 
 int main(int argc, char **argv) {
 
+    // Run Mid-Day Commander simulation until user exits
+    while(1) {
+        if(runMDC() == 1) {
+            return 1;
+        }
+    }
+}
+
+/**
+ * Replaces the last character in str to null terminate the string
+ * @param str
+ * @return
+ */
+void nullTerminateStr(char *str) {
+    int length = strlen(str);
+
+    if (length > 0) {
+        str[length - 1] = '\0';
+    }
+}
+
+/**
+ * Splits the given string by a delimiter
+ * @param str
+ * @param delim
+ */
+void splitByDelim(char *str, char *delim) {
+    // Returns first token
+    char *token = strtok(str, delim);
+
+    // Keep printing tokens while one of the
+    // delimiters present in str[].
+    while (token != NULL)
+    {
+//        printf("%s\n", token);
+        token = strtok(NULL, delim);
+    }
+}
+
+/**
+ * Print statistics about child execution including elapsed time and page faults
+ * @param elapsedTime
+ */
+void printChildStatistics(double elapsedTime) {
+
+    struct rusage childUsage;
+    getrusage(RUSAGE_CHILDREN, &childUsage);
+
+    printf("\n");
+    printf("-- Statistics ---\n");
+    printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
+    printf("Page Faults: %lu\n", childUsage.ru_minflt);
+    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt);
+    printf("\n");
+}
+
+/**
+ * Run the Mid-Day Commander shell simulation
+ * @return
+ */
+int runMDC() {
+
     const int BUFF_SIZE = 128;
 
     // Get user input
@@ -96,7 +158,7 @@ int main(int argc, char **argv) {
 
         } else {
             printf("Incorrect input\n");
-            return (EXIT_FAILURE);
+            return (1);
         }
 
 
@@ -106,54 +168,5 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     return 0;
 }
-
-/**
- * Replaces the last character in str to null terminate the string
- * @param str
- * @return
- */
-void nullTerminateStr(char *str) {
-    int length = strlen(str);
-
-    if (length > 0) {
-        str[length - 1] = '\0';
-    }
-}
-
-/**
- * Splits the given string by a delimiter
- * @param str
- * @param delim
- */
-void splitByDelim(char *str, char *delim) {
-    // Returns first token
-    char *token = strtok(str, delim);
-
-    // Keep printing tokens while one of the
-    // delimiters present in str[].
-    while (token != NULL)
-    {
-//        printf("%s\n", token);
-        token = strtok(NULL, delim);
-    }
-}
-
-/**
- * Print statistics about child execution including elapsed time and page faults
- * @param elapsedTime
- */
-void printChildStatistics(double elapsedTime) {
-
-    struct rusage childUsage;
-    getrusage(RUSAGE_CHILDREN, &childUsage);
-
-    printf("\n");
-    printf("-- Statistics ---\n");
-    printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
-    printf("Page Faults: %lu\n", childUsage.ru_minflt);
-    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt);
-}
-
