@@ -16,6 +16,6 @@
 
 void nullTerminateStr(char * str);
 void splitByDelim(char *str, char *delim);
-void printChildStatistics();
+void printChildStatistics(double elapsedTime);
 
 #endif

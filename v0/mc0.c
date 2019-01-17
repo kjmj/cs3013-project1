@@ -31,9 +31,24 @@ int main(int argc, char **argv) {
 
     if (pid > 0) {
         // parent process
-        wait(NULL);
-        printChildStatistics();
 
+        struct timeval t1, t2;
+        double elapsedTime;
+
+        // start timer
+        gettimeofday(&t1, NULL);
+
+        // wait for child to return
+        wait(NULL);
+
+        // stop timer
+        gettimeofday(&t2, NULL);
+
+        // compute and print the elapsed time in millisec
+        elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
+        elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // us to ms
+
+        printChildStatistics(elapsedTime);
     } else if (pid == 0) {
         // child process
 
@@ -126,14 +141,18 @@ void splitByDelim(char *str, char *delim) {
     }
 }
 
-void printChildStatistics() {
+/**
+ * Print statistics about child execution including elapsed time and page faults
+ * @param elapsedTime
+ */
+void printChildStatistics(double elapsedTime) {
 
     struct rusage childUsage;
     getrusage(RUSAGE_CHILDREN, &childUsage);
 
     printf("\n");
     printf("-- Statistics ---\n");
-//    printf("Elapsed Time: %d\n", );
+    printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
     printf("Page Faults: %lu\n", childUsage.ru_minflt);
     printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt);
 }
