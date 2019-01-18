@@ -3,8 +3,8 @@
 int main(int argc, char **argv) {
 
     // Run Mid-Day Commander simulation until user exits
-    while(1) {
-        if(runMDC() == 1) {
+    while (1) {
+        if (runMDC() == 1) {
             return 1;
         }
     }
@@ -34,8 +34,7 @@ void splitByDelim(char *str, char *delim) {
 
     // Keep printing tokens while one of the
     // delimiters present in str[].
-    while (token != NULL)
-    {
+    while (token != NULL) {
 //        printf("%s\n", token);
         token = strtok(NULL, delim);
     }
@@ -89,9 +88,9 @@ int runMDC() {
     }
 
     // fork to create a child process
-    pid_t pid = fork();
+    pid_t cpid = fork();
 
-    if (pid > 0) {
+    if (cpid > 0) {
         // parent process
 
         struct timeval t1, t2;
@@ -101,17 +100,18 @@ int runMDC() {
         gettimeofday(&t1, NULL);
 
         // wait for child to return
-        wait(NULL);
+//        wait(NULL);
+        waitpid(cpid, NULL, 0);
 
         // stop timer
         gettimeofday(&t2, NULL);
 
         // compute and print the elapsed time in millisec
         elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
-        elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // us to ms
+        elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
 
         printChildStatistics(elapsedTime);
-    } else if (pid == 0) {
+    } else if (cpid == 0) {
         // child process
 
         if (input == 0) { // whoami
