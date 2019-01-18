@@ -2,16 +2,18 @@
 
 int main(int argc, char **argv) {
 
-    // Run Mid-Day Commander simulation until user exits
+    // Run Mid-Day Commander simulation until user exits using (control + c)
     while (1) {
-        if (runMDC() == 1) {
-            return 1;
+        if (runMDC() == -1) {
+            break;
         }
     }
+
+    return EXIT_FAILURE;
 }
 
 /**
- * Replaces the last character in str to null terminate the string
+ * Replaces the last character in str with '\0' to terminate the string
  * @param str
  * @return
  */
@@ -42,13 +44,15 @@ void splitByDelim(char *str, char *delim) {
 
 /**
  * Print statistics about child execution including elapsed time and page faults
- * @param elapsedTime
+ * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
  */
 void printChildStatistics(double elapsedTime) {
 
+    // get usage statistics about child process
     struct rusage childUsage;
     getrusage(RUSAGE_CHILDREN, &childUsage);
 
+    // print out child usage statistics
     printf("\n");
     printf("-- Statistics ---\n");
     printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
@@ -59,7 +63,7 @@ void printChildStatistics(double elapsedTime) {
 
 /**
  * Run the Mid-Day Commander shell simulation
- * @return
+ * @return returns -1 on error
  */
 int runMDC() {
 
@@ -72,19 +76,26 @@ int runMDC() {
            "   1. last    : Prints out the result of the last command\n"
            "   2. ls      : Prints out the result of a listing on a user-specified path\n");
     printf("Option?: ");
-    char buff[BUFF_SIZE];
-    fgets(buff, sizeof buff, stdin);
+    char tempBuff[BUFF_SIZE];
+    fgets(tempBuff, sizeof tempBuff, stdin);
+    nullTerminateStr(tempBuff);
     printf("\n");
 
-    // Verify user input
-    int input = -1;
+    // try to parse user input
+    int userInput = -1;
     char *end = NULL;
     errno = 0;
 
-    long temp = strtol(buff, &end, 10);
+    long temp = strtol(tempBuff, &end, 10);
 
-    if (end != buff && errno != ERANGE && temp >= INT_MIN && temp <= INT_MAX) {
-        input = (int) temp;
+    if (end != tempBuff && errno != ERANGE && temp >= INT_MIN && temp <= INT_MAX) {
+        userInput = (int) temp;
+    }
+
+    // verify user input
+    if (!isValidInput(userInput)) {
+        printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", tempBuff);
+        return -1;
     }
 
     // fork to create a child process
@@ -100,71 +111,82 @@ int runMDC() {
         gettimeofday(&t1, NULL);
 
         // wait for child to return
-//        wait(NULL);
         waitpid(cpid, NULL, 0);
 
-        // stop timer
+        // child has returned, so stop the timer
         gettimeofday(&t2, NULL);
 
-        // compute and print the elapsed time in millisec
+        // compute elapsed time in ms
         elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
         elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
 
+        // print statistics about child process execution
         printChildStatistics(elapsedTime);
     } else if (cpid == 0) {
         // child process
 
-        if (input == 0) { // whoami
+        if (userInput == 0) { // whoami command
             printf("-- Who Am I? --\n");
 
             char *const args[] = {"./ls", '\0'};
             execv("/usr/bin/whoami", args);
 
-        } else if (input == 1) { //last
+        } else if (userInput == 1) { // last command
             printf("-- Last Logins --\n");
 
             char *const args[] = {"./last", '\0'};
             execv("/usr/bin/last", args);
 
-        } else if (input == 2) { // ls
+        } else if (userInput == 2) { // ls command
             printf("-- Directory Listing --\n");
 
-            char argBuff[BUFF_SIZE];
+            char argumentBuff[BUFF_SIZE];
             char pathBuff[BUFF_SIZE];
 
+            // get arguments from user, then split them
             printf("Arguments?: ");
-            fgets(argBuff, sizeof argBuff, stdin);
-            nullTerminateStr(argBuff);
-            splitByDelim(argBuff, " ");
+            fgets(argumentBuff, sizeof argumentBuff, stdin);
+            nullTerminateStr(argumentBuff);
+            splitByDelim(argumentBuff, " ");
 
+            // get path from user
             printf("Path?: ");
             fgets(pathBuff, sizeof pathBuff, stdin);
             nullTerminateStr(pathBuff);
             printf("\n");
 
-            if (strlen(argBuff) == 0 && strlen(pathBuff) == 0) { // user specified no args or path
+            if (strlen(argumentBuff) == 0 && strlen(pathBuff) == 0) { // user specified no args or path
                 char *const args[] = {"./ls", '\0'};
                 execv("/bin/ls", args);
-            } else if (strlen(argBuff) == 0) { // user specified only a path
+            } else if (strlen(argumentBuff) == 0) { // user specified only a path
                 char *const args[] = {"./ls", pathBuff, '\0'};
                 execv("/bin/ls", args);
             } else if (strlen(pathBuff) == 0) { // user specified only arg(s)
-                char *const args[] = {"./ls", argBuff, '\0'};
+                char *const args[] = {"./ls", argumentBuff, '\0'};
                 execv("/bin/ls", args);
             } else { // user specified both arg(s) and a path
-                char *const args[] = {"./ls", argBuff, pathBuff, '\0'};
+                char *const args[] = {"./ls", argumentBuff, pathBuff, '\0'};
                 execv("/bin/ls", args);
             }
 
-        } else {
-            printf("Incorrect input\n");
-            return (1);
         }
 
-
-        exit(EXIT_FAILURE); // execv returned, meaning error
+        exit(1); // execv returned, meaning error
     } else {
         printf("Error, failed to fork\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * This function determines if MDC can support the user requested command
+ * @param userInput
+ * @return 1 if user input is valid, 0 otherwise
+ */
+int isValidInput(int userInput) {
+    if (userInput == 0 || userInput == 1 || userInput == 2) {
         return 1;
     }
 

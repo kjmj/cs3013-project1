@@ -18,5 +18,6 @@ void nullTerminateStr(char * str);
 void splitByDelim(char *str, char *delim);
 void printChildStatistics(double elapsedTime);
 int runMDC();
+int isValidInput(int userInput);
 
 #endif
