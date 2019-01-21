@@ -1,8 +1,9 @@
 #include "mc1.h"
 
 int main(int argc, char **argv) {
-    char **comAdd = malloc(0);
-    int *comNum = (int *) malloc(sizeof(int));
+    char **comAdd = malloc(
+            0); //Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
+    int *comNum = (int *) malloc(sizeof(int)); // number of user added commands
     *comNum = 0;
 
     // Run Mid-Day Commander simulation until user exits using (control + c)
@@ -66,6 +67,8 @@ void printChildStatistics(double elapsedTime) {
 
 /**
  * Run the Mid-Day Commander shell simulation
+ * @param comNum pointer to the number of user added commands
+ * @param comAdd pointer to strings of user added commands
  * @return returns -1 on error
  */
 int runMDC(int *comNum, char **comAdd) {
@@ -75,10 +78,12 @@ int runMDC(int *comNum, char **comAdd) {
            "   0. whoami  : Prints out the result of the whoamicommand\n"
            "   1. last    : Prints out the result of the last command\n"
            "   2. ls      : Prints out the result of a listing on a user-specified path\n");
+
     // Print user added command
     for (int i = 0; i < *comNum; i++) {
         printf("   %d. %s : User added command\n", i + 3, comAdd[i]);
     }
+
     printf("   a. add command : Adds a new command to the menu.\n"
            "   c. change directory : Changes process working directory\n"
            "   e. exit : Leave Mid-Day Commander\n"
@@ -208,7 +213,6 @@ int runMDC(int *comNum, char **comAdd) {
                 char *const args[] = {"./ls", argumentBuff, pathBuff, '\0'};
                 execv("/bin/ls", args);
             }
-
         }
 
         exit(1); // execv returned, meaning error
