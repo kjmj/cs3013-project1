@@ -1,8 +1,7 @@
 #include "mc1.h"
 
 int main(int argc, char **argv) {
-    char **comAdd = malloc(
-            0); //Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
+    char **comAdd = malloc(MAX_ARGS); //Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
     int *comNum = (int *) malloc(sizeof(int)); // number of user added commands
     *comNum = 0;
 
@@ -47,6 +46,28 @@ void splitByDelim(char *str, char *delim) {
 }
 
 /**
+ * This function determines if MDC can support the user requested command
+ * @param userInput
+ * @param comNum number of commands added by the user
+ * @return 1 if user input is valid, 0 otherwise
+ */
+int isValidInput(int userInput, int comNum) {
+
+    if (comNum == 0) { // user hasnt added any commands
+        if (userInput == 0 || userInput == 1 || userInput == 2) { // our default values a user can enter
+            return 1;
+        }
+    } else if (userInput > 0) { // user has added command(s)
+        printf("%d, %d\n", userInput, comNum);
+        if (userInput < comNum + INITIAL_NUMBER_OF_COMMANDS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/**
  * Print statistics about child execution including elapsed time and page faults
  * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
  */
@@ -79,16 +100,18 @@ int runMDC(int *comNum, char **comAdd) {
            "   1. last    : Prints out the result of the last command\n"
            "   2. ls      : Prints out the result of a listing on a user-specified path\n");
 
-    // Print user added command
+    // Print user added command(s)
     for (int i = 0; i < *comNum; i++) {
-        printf("   %d. %s : User added command\n", i + 3, comAdd[i]);
+        printf("   %d. %s : User added command\n", i + INITIAL_NUMBER_OF_COMMANDS, comAdd[i]);
     }
 
+    // Print the rest of the users options
     printf("   a. add command : Adds a new command to the menu.\n"
            "   c. change directory : Changes process working directory\n"
            "   e. exit : Leave Mid-Day Commander\n"
            "   p. pwd : Prints working directory\n");
     printf("Option?: ");
+
     char tempBuff[BUFF_SIZE];
     fgets(tempBuff, sizeof tempBuff, stdin);
     nullTerminateStr(tempBuff);
@@ -96,23 +119,32 @@ int runMDC(int *comNum, char **comAdd) {
 
     if (!strcmp(tempBuff, "a")) {
         printf("-- Add a command --\n");
-        printf("Command to add?:");
+        printf("Command to add?: ");
+
         char comBuff[BUFF_SIZE];
         fgets(comBuff, sizeof(comBuff), stdin);
         nullTerminateStr(comBuff);
+
         char *comBuffP = malloc(BUFF_SIZE * sizeof(char));
         strcpy(comBuffP, comBuff);
         (*comNum)++;
-        comAdd = (char **) realloc(comAdd, *comNum * sizeof(char *));
+
         comAdd[*comNum - 1] = comBuffP;
         return 0;
     } else if (!strcmp(tempBuff, "c")) {
-        printf("--change Directory--\n");
-        printf("new Directory?:");
+        printf("-- Change Directory --\n");
+        printf("New Directory?: ");
+
         char pathBuff[BUFF_SIZE];
         fgets(pathBuff, sizeof pathBuff, stdin);
         nullTerminateStr(pathBuff);
-        chdir(pathBuff);
+
+        int v = chdir(pathBuff);
+        if (v == -1) {
+            fprintf(stderr, "cd: %s: %s\n", pathBuff, strerror(errno));
+            return -1;
+        }
+
         printf("\n");
         return 0;
     } else if (!strcmp(tempBuff, "e")) {
@@ -120,9 +152,14 @@ int runMDC(int *comNum, char **comAdd) {
         exit(EXIT_SUCCESS);
         return 0;
     } else if (!strcmp(tempBuff, "p")) {
-        printf("--Current Directory--\n");
-        char *dir = get_current_dir_name();
-        printf("%s\n", dir);
+        printf("-- Current Directory --\n");
+        char cwd[BUFF_SIZE];
+
+        if (getcwd(cwd, sizeof(cwd)) == NULL)
+            perror("getcwd() error");
+        else
+            printf("Directory: %s\n\n", cwd);
+
         return 0;
     }
 
@@ -138,7 +175,7 @@ int runMDC(int *comNum, char **comAdd) {
     }
 
     // verify user input
-    if (!isValidInput(userInput)) {
+    if (!isValidInput(userInput, *comNum)) {
         printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", tempBuff);
         return -1;
     }
@@ -213,25 +250,35 @@ int runMDC(int *comNum, char **comAdd) {
                 char *const args[] = {"./ls", argumentBuff, pathBuff, '\0'};
                 execv("/bin/ls", args);
             }
+        } else if (userInput < *comNum + INITIAL_NUMBER_OF_COMMANDS) { // user added command
+
+            char *fullCommand = malloc(sizeof(BUFF_SIZE));
+            fullCommand = comAdd[userInput - INITIAL_NUMBER_OF_COMMANDS];
+
+            char *command = malloc(sizeof(BUFF_SIZE)); // first part of the command
+            char *secondPart = malloc(sizeof(BUFF_SIZE)); // everything after the first part, aka the arguments
+
+            char *const sepAt = strchr(fullCommand, ' ');
+            if (sepAt != NULL) {
+                *sepAt = '\0'; // overwrite first separator, creating two strings.
+                command = fullCommand; // first part
+                secondPart = (sepAt + 1); // second part (rest of string)
+            }
+
+            splitByDelim(secondPart, " ");
+            
+            char executableName[BUFF_SIZE];
+            strcpy(executableName, "./");
+            strcat(executableName, command);
+
+            char *const args[] = {executableName, secondPart, '\0'};
+            execvp(command, args);
         }
 
         exit(1); // execv returned, meaning error
     } else {
         printf("Error, failed to fork\n");
         return -1;
-    }
-
-    return 0;
-}
-
-/**
- * This function determines if MDC can support the user requested command
- * @param userInput
- * @return 1 if user input is valid, 0 otherwise
- */
-int isValidInput(int userInput) {
-    if (userInput == 0 || userInput == 1 || userInput == 2) {
-        return 1;
     }
 
     return 0;
