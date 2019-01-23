@@ -1,13 +1,20 @@
 #include "mc1.h"
 
 int main(int argc, char **argv) {
-    char **comAdd = malloc(MAX_USER_ADDED_COMMANDS * sizeof(char *)); // Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
+    char **comAdd = malloc(MAX_USER_ADDED_COMMANDS *
+                           sizeof(char *)); // Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
     int *comNum = (int *) malloc(sizeof(int)); // number of user added commands
     *comNum = 0;
 
+    int *ru_minflt = (int *) malloc(sizeof(int));
+    *ru_minflt = 0;
+
+    int *ru_majflt = (int *) malloc(sizeof(int));
+    *ru_majflt = 0;
+
     // Run Mid-Day Commander simulation until user exits using (control + c)
     while (1) {
-        if (runMDC(comNum, comAdd)) {
+        if (runMDC(comNum, comAdd, ru_minflt, ru_majflt)) {
             break;
         }
     }
@@ -19,9 +26,11 @@ int main(int argc, char **argv) {
  * Run the Mid-Day Commander shell simulation
  * @param comNum pointer to the number of user added commands
  * @param comAdd pointer to strings of user added commands
+ * @param ru_minflt pointer to the total number of ru_minflt in the child process
+ * @param ru_majflt pointer to the total number of ru_majflt in the child process
  * @return 0 on success
  */
-int runMDC(int *comNum, char **comAdd) {
+int runMDC(int *comNum, char **comAdd, int *ru_minflt, int *ru_majflt) {
 
     // Print message explaining how MDC works to the user
     printInitialMessage(comNum, comAdd);
@@ -47,7 +56,7 @@ int runMDC(int *comNum, char **comAdd) {
     pid_t cpid = fork();
 
     if (cpid > 0) {
-        handleParentProcess(cpid);
+        handleParentProcess(cpid, ru_minflt, ru_majflt);
     } else if (cpid == 0) {
         handleChildProcess(userInputStr, *comNum, comAdd);
     } else {
@@ -137,7 +146,7 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         fgets(comBuff, sizeof(comBuff), stdin);
         nullTerminateStr(comBuff);
 
-        if(*comNum == MAX_USER_ADDED_COMMANDS) {
+        if (*comNum == MAX_USER_ADDED_COMMANDS) {
             printf("Cannot add that command, MDC supports up to %d commands\n\n", MAX_USER_ADDED_COMMANDS);
         } else {
             char *comBuffP = malloc(BUFF_SIZE * sizeof(char));
@@ -189,8 +198,10 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 /**
  * Handle the parent process
  * @param cpid Process ID of the child
+ * @param ru_minflt pointer to the total number of ru_minflt in the child process
+ * @param ru_majflt pointer to the total number of ru_majflt in the child process
  */
-void handleParentProcess(pid_t cpid) {
+void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt) {
 
     // used to calculate elapsed time of child process
     struct timeval t1, t2;
@@ -210,7 +221,7 @@ void handleParentProcess(pid_t cpid) {
     elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
 
     // print statistics about child process execution
-    printChildStatistics(elapsedTime);
+    printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
 }
 
 /**
@@ -302,7 +313,7 @@ void handleChildProcess(char *userInputStr, int comNum, char **comAdd) {
         // execute the command
         char *const args[] = {executableName, secondPart, '\0'};
 
-        if(execvp(command, args) == -1) {
+        if (execvp(command, args) == -1) {
             perror("error in execvp()");
         }
     }
@@ -313,9 +324,11 @@ void handleChildProcess(char *userInputStr, int comNum, char **comAdd) {
 /**
  * Print statistics about child execution including elapsed time and page faults
  * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
+ * @param ru_minflt pointer to the total number of ru_minflt in the child process
+ * @param ru_majflt pointer to the total number of ru_majflt in the child process
  * @return void, but prints text to stdout
  */
-void printChildStatistics(double elapsedTime) {
+void printChildStatistics(double elapsedTime, int *ru_minflt, int *ru_majflt) {
 
     // get usage statistics about child process
     struct rusage childUsage;
@@ -325,9 +338,12 @@ void printChildStatistics(double elapsedTime) {
     printf("\n");
     printf("-- Statistics ---\n");
     printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
-    printf("Page Faults: %lu\n", childUsage.ru_minflt);
-    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt);
+    printf("Page Faults: %lu\n", childUsage.ru_minflt - *ru_minflt);
+    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt - *ru_majflt);
     printf("\n");
+
+    *ru_minflt = childUsage.ru_minflt;
+    *ru_majflt = childUsage.ru_majflt;
 }
 
 /**
@@ -359,7 +375,6 @@ void splitByDelim(char *str, char *delim) {
         token = strtok(NULL, delim);
     }
 }
-
 
 
 /**

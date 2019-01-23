@@ -19,7 +19,7 @@
 #define INITIAL_NUMBER_OF_COMMANDS 3
 #define MAX_USER_ADDED_COMMANDS 50
 
-int runMDC(int *comNum, char **comAdd);
+int runMDC(int *comNum, char **comAdd, int *ru_minflt, int *ru_majflt);
 
 void printInitialMessage(int *comNum, char **comAdd);
 
@@ -27,11 +27,11 @@ int isValidInput(char *userInputString, int comNum);
 
 int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd);
 
-void handleParentProcess(pid_t cpid);
+void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt);
 
 void handleChildProcess(char *userInputStr, int comNum, char **comAdd);
 
-void printChildStatistics(double elapsedTime);
+void printChildStatistics(double elapsedTime, int *ru_minflt, int *ru_majflt);
 
 void nullTerminateStr(char *str);
 
