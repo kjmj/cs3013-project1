@@ -138,7 +138,7 @@ int runMDC(int *comNum, char **comAdd) {
     }
 
     // verify user input
-    if (!isValidInput(userInput)) {
+    if (!isValidInput(userInput, *comNum)) {
         printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", tempBuff);
         return -1;
     }
@@ -213,6 +213,26 @@ int runMDC(int *comNum, char **comAdd) {
                 char *const args[] = {"./ls", argumentBuff, pathBuff, '\0'};
                 execv("/bin/ls", args);
             }
+        } else if (userInput <= (*comNum + INIT_COM_NUM)) { //*comNum + INIT_COM_NUM is the total commands in MDC
+            char *comStr = comAdd[userInput - INIT_COM_NUM - 1];
+            printf("-- Command: %s --\n", comStr);
+            /*printf("hello");
+            printf("%s", comStr);
+            char* args[MAX_PARAM];
+            char *token = strtok(comStr, " ");
+            char* comName = token;
+            int i = 0;
+            args[i] = strcat("./", token);
+            while(token != NULL){
+                printf("no");
+                i++;
+                token = strtok(NULL, " ");
+                args[i] = token;
+            }
+            args[++i] = '\0';
+            execv(strcat("/bin/", comName), args);
+            printf("This should not be printed");
+             */
         }
 
         exit(1); // execv returned, meaning error
@@ -227,12 +247,14 @@ int runMDC(int *comNum, char **comAdd) {
 /**
  * This function determines if MDC can support the user requested command
  * @param userInput
+ * @param comNum total number of user added commands
  * @return 1 if user input is valid, 0 otherwise
  */
-int isValidInput(int userInput) {
-    if (userInput == 0 || userInput == 1 || userInput == 2) {
-        return 1;
+int isValidInput(int userInput, int comNum) {
+    for (int i = 1; i <= comNum + INIT_COM_NUM; i++) {
+        if (userInput == i) {
+            return 1;
+        }
     }
-
     return 0;
 }

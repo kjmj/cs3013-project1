@@ -16,7 +16,8 @@
 
 
 #define BUFF_SIZE 12
-
+#define INIT_COM_NUM 2
+#define MAX_PARAM 32
 void nullTerminateStr(char *str);
 
 void splitByDelim(char *str, char *delim);
@@ -25,6 +26,5 @@ void printChildStatistics(double elapsedTime);
 
 int runMDC();
 
-int isValidInput(int userInput);
-
+int isValidInput(int userInput, int comNum);
 #endif
