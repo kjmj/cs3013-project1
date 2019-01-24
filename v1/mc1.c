@@ -16,18 +16,16 @@ int main(int argc, char **argv) {
     // Run Mid-Day Commander simulation until user exits using (control + c) or "e"
     while (1) {
         if (runMDC(comNum, comAdd)) {
-            break;
+            continue;
         }
     }
-
-    return EXIT_FAILURE;
 }
 
 /**
  * Run the Mid-Day Commander shell simulation
  * @param comNum pointer to the number of user added commands
  * @param comAdd pointer to strings of user added commands
- * @return 0 on success
+ * @return 0 on success, -1 on failure
  */
 int runMDC(int *comNum, char **comAdd) {
 
@@ -54,21 +52,17 @@ int runMDC(int *comNum, char **comAdd) {
 
     // Verify user input
     if (!isValidInput(userInputStr, *comNum)) {
-        printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", userInputStr);
+        printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n\n", userInputStr);
         return -1;
     }
 
     // handle the commands that dont reset on running MDC again
     if (!handlePersistentCommands(userInputStr, comNum, comAdd)) {
-        return 0;
+        return -1;
     }
 
-    // try to parse the user input to an int
+    // try to parse the user input to an int since we already validated input
     int userInputInt = strToInt(userInputStr);
-    if (userInputInt == -1 && errno == ERANGE) {
-        printf("Error parsing string %s into int\n", userInputStr);
-        exit(EXIT_FAILURE);
-    }
 
     // used to store user input command
     char **args = malloc(BUFF_SIZE * MAX_USER_ADDED_COMMANDS);
@@ -216,9 +210,8 @@ int isValidInput(char *userInputString, int comNum) {
 
     // The user may have entered a number - lets check this case
     int userInputInt = strToInt(userInputString);
-    if (userInputInt == -1 && errno == ERANGE) {
-        printf("Error parsing string %s into int\n", userInputString);
-        exit(EXIT_FAILURE);
+    if (userInputInt == INT_MAX) { // error occurred in conversion
+        return 0;
     }
 
     if (comNum == 0) { // user hasn't added any commands
@@ -286,7 +279,6 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         // try to change directory
         if (chdir(pathBuff) == -1) {
             fprintf(stderr, "cd: %s: %s\n", pathBuff, strerror(errno));
-//            exit(EXIT_FAILURE);
         }
         printf("\n");
 
@@ -381,10 +373,10 @@ void nullTerminateStr(char *str) {
 /**
  * Parses the string to an int
  * @param str The string to parse to an int
- * @return the string as an int on success, or -1 AND errno set to ERANGE on failure
+ * @return the string as an int on success, or INT_MAX on failure
  */
 int strToInt(char *str) {
-    int i = -1;
+    int i = INT_MAX;
     char *end = NULL;
     errno = 0;
 

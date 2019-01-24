@@ -24,3 +24,9 @@ ls -al --color=auto
 
 /home
 0
+badInput
+12
+2
+
+
+more bad input
