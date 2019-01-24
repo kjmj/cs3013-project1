@@ -1,20 +1,21 @@
 #include "mc1.h"
 
+int IS_PIPED_INPUT; // global variable that stores whether input is from terminal or piped in from file
+
 int main(int argc, char **argv) {
-    char **comAdd = malloc(MAX_USER_ADDED_COMMANDS *
-                           sizeof(char *)); // Array of strings of user added commands: comAdd[0] will be the first user added command with id 3.
+    char **comAdd = malloc(MAX_USER_ADDED_COMMANDS); // holds user added commands
     int *comNum = (int *) malloc(sizeof(int)); // number of user added commands
     *comNum = 0;
 
-    int *ru_minflt = (int *) malloc(sizeof(int));
-    *ru_minflt = 0;
+    if (isatty(fileno(stdin))) { // input is coming from terminal
+        IS_PIPED_INPUT = 0;
+    } else { // input is coming from a file pipe
+        IS_PIPED_INPUT = 1;
+    }
 
-    int *ru_majflt = (int *) malloc(sizeof(int));
-    *ru_majflt = 0;
-
-    // Run Mid-Day Commander simulation until user exits using (control + c)
+    // Run Mid-Day Commander simulation until user exits using (control + c) or "e"
     while (1) {
-        if (runMDC(comNum, comAdd, ru_minflt, ru_majflt)) {
+        if (runMDC(comNum, comAdd)) {
             break;
         }
     }
@@ -26,25 +27,35 @@ int main(int argc, char **argv) {
  * Run the Mid-Day Commander shell simulation
  * @param comNum pointer to the number of user added commands
  * @param comAdd pointer to strings of user added commands
- * @param ru_minflt pointer to the total number of ru_minflt in the child process
- * @param ru_majflt pointer to the total number of ru_majflt in the child process
  * @return 0 on success
  */
-int runMDC(int *comNum, char **comAdd, int *ru_minflt, int *ru_majflt) {
+int runMDC(int *comNum, char **comAdd) {
 
     // Print message explaining how MDC works to the user
     printInitialMessage(comNum, comAdd);
 
     // Read in user input
     char userInputStr[BUFF_SIZE];
-    fgets(userInputStr, sizeof userInputStr, stdin);
-    nullTerminateStr(userInputStr);
+
+    char *f = fgets(userInputStr, sizeof userInputStr, stdin);
+
+    if (strlen(userInputStr) > 0) {
+        nullTerminateStr(userInputStr);
+    }
+
+    if (IS_PIPED_INPUT) {
+        if (f == NULL) { // If we detect EOF, prepare to exit
+            strcpy(userInputStr, "e");
+        }
+        printf("%s\n", userInputStr);
+    }
+
     printf("\n");
 
     // Verify user input
     if (!isValidInput(userInputStr, *comNum)) {
         printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", userInputStr);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     // handle the commands that dont reset on running MDC again
@@ -52,18 +63,111 @@ int runMDC(int *comNum, char **comAdd, int *ru_minflt, int *ru_majflt) {
         return 0;
     }
 
+    // try to parse the user input to an int
+    int userInputInt = strToInt(userInputStr);
+    if (userInputInt == -1 && errno == ERANGE) {
+        printf("Error parsing string %s into int\n", userInputStr);
+        exit(EXIT_FAILURE);
+    }
+
+    // used to store user input command
+    char **args = malloc(BUFF_SIZE * MAX_USER_ADDED_COMMANDS);
+
+    // now process the user input
+    if (userInputInt == 0) { // whoami command
+        printf("-- Who Am I? --\n");
+
+        args[0] = "whoami";
+        args[1] = '\0';
+    } else if (userInputInt == 1) { // last command
+        printf("-- Last Logins --\n");
+
+        args[0] = "last";
+        args[1] = '\0';
+    } else if (userInputInt == 2) { // ls command
+        printf("-- Directory Listing --\n");
+
+        char argumentBuff[BUFF_SIZE];
+        char pathBuff[BUFF_SIZE];
+
+        // get arguments from user
+        printf("Arguments?: ");
+
+        fgets(argumentBuff, sizeof argumentBuff, stdin);
+        nullTerminateStr(argumentBuff);
+        if (IS_PIPED_INPUT) {
+            printf("%s\n", argumentBuff);
+        }
+
+        // get path from user
+        printf("Path?: ");
+
+        fgets(pathBuff, sizeof pathBuff, stdin);
+        nullTerminateStr(pathBuff);
+        if (IS_PIPED_INPUT) {
+            printf("%s\n", pathBuff);
+        }
+        printf("\n");
+
+        if (strlen(argumentBuff) == 0 && strlen(pathBuff) == 0) { // user specified no args or path
+            args[0] = "ls";
+            args[1] = '\0';
+        } else if (strlen(argumentBuff) == 0) { // user specified only a path
+            args[0] = "ls";
+            args[1] = pathBuff;
+            args[2] = '\0';
+        } else if (strlen(pathBuff) == 0) { // user specified only arg(s)
+            char buff[BUFF_SIZE];
+            strcpy(buff, "ls ");
+            strcat(buff, argumentBuff);
+
+            char *buffP = malloc(BUFF_SIZE);
+            strcpy(buffP, buff);
+
+            splitInputArgs(args, buffP);
+        } else { // user specified both arg(s) and a path
+            char buff[BUFF_SIZE];
+
+            strcpy(buff, "ls ");
+            strcat(buff, argumentBuff);
+            strcat(buff, " ");
+            strcat(buff, pathBuff);
+
+            char *buffP = malloc(BUFF_SIZE);
+            strcpy(buffP, buff);
+
+            splitInputArgs(args, buffP);
+        }
+    } else if (userInputInt < *comNum + INITIAL_NUMBER_OF_COMMANDS) { // user added command
+        char *fullCommand = malloc(BUFF_SIZE);
+        strcpy(fullCommand, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
+
+        splitInputArgs(args, fullCommand);
+    }
+
     // fork to create a child process
     pid_t cpid = fork();
 
     if (cpid > 0) {
-        handleParentProcess(cpid, ru_minflt, ru_majflt);
+        handleParentProcess(cpid);
     } else if (cpid == 0) {
-        handleChildProcess(userInputStr, *comNum, comAdd);
+
+        char *command = args[0];
+
+        // create the executable name
+        char executableName[BUFF_SIZE];
+        strcpy(executableName, "./");
+        strcat(executableName, args[0]);
+        args[0] = executableName;
+
+        // try to execute the command
+        if (execvp(command, args) == -1) {
+            perror("error in execvp()");
+        }
     } else {
         printf("Error, failed to fork\n");
         exit(EXIT_FAILURE);
     }
-
     return 0;
 }
 
@@ -113,7 +217,7 @@ int isValidInput(char *userInputString, int comNum) {
     // The user may have entered a number - lets check this case
     int userInputInt = strToInt(userInputString);
     if (userInputInt == -1 && errno == ERANGE) {
-        perror("Error parsing int");
+        printf("Error parsing string %s into int\n", userInputString);
         exit(EXIT_FAILURE);
     }
 
@@ -121,7 +225,7 @@ int isValidInput(char *userInputString, int comNum) {
         if (userInputInt == 0 || userInputInt == 1 || userInputInt == 2) { // the default values a user can enter
             return 1;
         }
-    } else if (userInputInt > 0) { // user has added command(s)
+    } else if (comNum > 0) { // user has added command(s)
         if (userInputInt < comNum + INITIAL_NUMBER_OF_COMMANDS) {
             return 1;
         }
@@ -143,8 +247,14 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         printf("Command to add?: ");
 
         char comBuff[BUFF_SIZE];
+
         fgets(comBuff, sizeof(comBuff), stdin);
+
         nullTerminateStr(comBuff);
+        if (IS_PIPED_INPUT) {
+            printf("%s\n", comBuff);
+        }
+
 
         if (*comNum == MAX_USER_ADDED_COMMANDS) {
             printf("Cannot add that command, MDC supports up to %d commands\n\n", MAX_USER_ADDED_COMMANDS);
@@ -164,8 +274,14 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         printf("New Directory?: ");
 
         char pathBuff[BUFF_SIZE];
+
         fgets(pathBuff, sizeof pathBuff, stdin);
+
         nullTerminateStr(pathBuff);
+        if (IS_PIPED_INPUT) {
+            printf("%s\n", pathBuff);
+        }
+
 
         // try to change directory
         if (chdir(pathBuff) == -1) {
@@ -184,10 +300,12 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         printf("-- Current Directory --\n");
         char cwd[BUFF_SIZE];
 
-        if (getcwd(cwd, sizeof(cwd)) == NULL)
+        if (getcwd(cwd, sizeof(cwd)) == NULL) {
             perror("getcwd() error");
-        else
+            return -1;
+        } else {
             printf("Directory: %s\n\n", cwd);
+        }
 
         return 0;
     }
@@ -198,10 +316,8 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 /**
  * Handle the parent process
  * @param cpid Process ID of the child
- * @param ru_minflt pointer to the total number of ru_minflt in the child process
- * @param ru_majflt pointer to the total number of ru_majflt in the child process
  */
-void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt) {
+void handleParentProcess(pid_t cpid) {
 
     // used to calculate elapsed time of child process
     struct timeval t1, t2;
@@ -210,8 +326,16 @@ void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt) {
     // start timer
     gettimeofday(&t1, NULL);
 
+    // track stats before forking
+    struct rusage before;
+    getrusage(RUSAGE_CHILDREN, &before);
+
     // wait for child to return
     waitpid(cpid, NULL, 0);
+
+    // track stats after forking
+    struct rusage after;
+    getrusage(RUSAGE_CHILDREN, &after);
 
     // child has returned, so stop the timer
     gettimeofday(&t2, NULL);
@@ -221,129 +345,24 @@ void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt) {
     elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
 
     // print statistics about child process execution
-    printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
-}
-
-/**
- * Handle the child process by processing user input and acting accordingly
- * @param userInputStr The string with user input
- * @param comNum pointer to number of user added commands
- * @param comAdd pointer to strings of user added commands
- */
-void handleChildProcess(char *userInputStr, int comNum, char **comAdd) {
-
-    // try to parse the user input to an int
-    int userInputInt = strToInt(userInputStr);
-    if (userInputInt == -1 && errno == ERANGE) {
-        perror("Error parsing int");
-        exit(EXIT_FAILURE);
-    }
-
-    // now process the user input
-    if (userInputInt == 0) { // whoami command
-        printf("-- Who Am I? --\n");
-
-        char *const args[] = {"./ls", '\0'};
-        execv("/usr/bin/whoami", args);
-
-    } else if (userInputInt == 1) { // last command
-        printf("-- Last Logins --\n");
-
-        char *const args[] = {"./last", '\0'};
-        execv("/usr/bin/last", args);
-
-    } else if (userInputInt == 2) { // ls command
-        printf("-- Directory Listing --\n");
-
-        char argumentBuff[BUFF_SIZE];
-        char pathBuff[BUFF_SIZE];
-
-        // get arguments from user, then split them
-        printf("Arguments?: ");
-        fgets(argumentBuff, sizeof argumentBuff, stdin);
-        nullTerminateStr(argumentBuff);
-        splitByDelim(argumentBuff, " ");
-
-        // get path from user
-        printf("Path?: ");
-        fgets(pathBuff, sizeof pathBuff, stdin);
-        nullTerminateStr(pathBuff);
-        printf("\n");
-
-        if (strlen(argumentBuff) == 0 && strlen(pathBuff) == 0) { // user specified no args or path
-            char *const args[] = {"./ls", '\0'};
-            execv("/bin/ls", args);
-        } else if (strlen(argumentBuff) == 0) { // user specified only a path
-            char *const args[] = {"./ls", pathBuff, '\0'};
-            execv("/bin/ls", args);
-        } else if (strlen(pathBuff) == 0) { // user specified only arg(s)
-            char *const args[] = {"./ls", argumentBuff, '\0'};
-            execv("/bin/ls", args);
-        } else { // user specified both arg(s) and a path
-            char *const args[] = {"./ls", argumentBuff, pathBuff, '\0'};
-            execv("/bin/ls", args);
-        }
-    } else if (userInputInt < comNum + INITIAL_NUMBER_OF_COMMANDS) { // user added command
-
-        // the command the user added
-        char *userCommand = malloc(sizeof(BUFF_SIZE));
-        userCommand = comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS];
-
-        char *command = malloc(sizeof(BUFF_SIZE)); // first part of the command
-        char *secondPart = malloc(sizeof(BUFF_SIZE)); // everything after the first part, aka the arguments
-
-        char *const sepAt = strchr(userCommand, ' ');
-        if (sepAt != (NULL)) {
-            *sepAt = '\0'; // overwrite first separator, creating two strings.
-            command = userCommand; // first part
-            secondPart = (sepAt + 1); // second part (rest of string)
-        } else { // no args specified
-            command = userCommand;
-            secondPart = '\0';
-        }
-
-        // split the arguments
-        splitByDelim(secondPart, " ");
-
-        // create the executable name
-        char executableName[BUFF_SIZE];
-        strcpy(executableName, "./");
-        strcat(executableName, command);
-
-        // execute the command
-        char *const args[] = {executableName, secondPart, '\0'};
-
-        if (execvp(command, args) == -1) {
-            perror("error in execvp()");
-        }
-    }
-
-    exit(1); // execv returned, meaning error
+    printChildStatistics(elapsedTime, &before, &after);
 }
 
 /**
  * Print statistics about child execution including elapsed time and page faults
  * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
- * @param ru_minflt pointer to the total number of ru_minflt in the child process
- * @param ru_majflt pointer to the total number of ru_majflt in the child process
- * @return void, but prints text to stdout
+ * @param before filled out rusage struct that was created before fork
+ * @param after filled out rusage struct that was created after fork
+ * @return void, put prints text to stdout
  */
-void printChildStatistics(double elapsedTime, int *ru_minflt, int *ru_majflt) {
-
-    // get usage statistics about child process
-    struct rusage childUsage;
-    getrusage(RUSAGE_CHILDREN, &childUsage);
-
+void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after) {
     // print out child usage statistics
     printf("\n");
     printf("-- Statistics ---\n");
     printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
-    printf("Page Faults: %lu\n", childUsage.ru_minflt - *ru_minflt);
-    printf("Page Faults (reclaimed): %lu\n", childUsage.ru_majflt - *ru_majflt);
+    printf("Page Faults: %lu\n", (*after).ru_minflt - (*before).ru_minflt);
+    printf("Page Faults (reclaimed): %lu\n", (*after).ru_majflt - (*before).ru_majflt);
     printf("\n");
-
-    *ru_minflt = childUsage.ru_minflt;
-    *ru_majflt = childUsage.ru_majflt;
 }
 
 /**
@@ -358,24 +377,6 @@ void nullTerminateStr(char *str) {
         str[length - 1] = '\0';
     }
 }
-
-/**
- * Splits the given string by a delimiter
- * @param str The string we want to split
- * @param delim The delimiter used to split the string
- * @return void, but str has been tokenized
- */
-void splitByDelim(char *str, char *delim) {
-    // Returns first token
-    char *token = strtok(str, delim);
-
-    // Keep processing tokens while a delimiter present in the string
-    while (token != NULL) {
-//        printf("%s\n", token);
-        token = strtok(NULL, delim);
-    }
-}
-
 
 /**
  * Parses the string to an int
@@ -394,4 +395,24 @@ int strToInt(char *str) {
     }
 
     return i;
+}
+
+/**
+ * Split the arguments in str by a " " delimeter, then store that in splitStr
+ * @param splitStr
+ * @param str
+ * @return
+ */
+int splitInputArgs(char **splitStr, char *str) {
+    int i = 0;
+
+    if (strlen(str) != 0) {
+        char *delim = " ";
+        splitStr[i++] = strtok(str, delim);
+        while ((splitStr[i] = strtok(NULL, delim))) {
+            i++;
+        }
+    }
+    splitStr[i] = '\0';
+    return 0;
 }

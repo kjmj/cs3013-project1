@@ -14,12 +14,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include <stdio_ext.h>
+
 
 #define BUFF_SIZE 256
 #define INITIAL_NUMBER_OF_COMMANDS 3
 #define MAX_USER_ADDED_COMMANDS 50
 
-int runMDC(int *comNum, char **comAdd, int *ru_minflt, int *ru_majflt);
+int runMDC(int *comNum, char **comAdd);
 
 void printInitialMessage(int *comNum, char **comAdd);
 
@@ -27,16 +29,14 @@ int isValidInput(char *userInputString, int comNum);
 
 int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd);
 
-void handleParentProcess(pid_t cpid, int *ru_minflt, int *ru_majflt);
+void handleParentProcess(pid_t cpid);
 
-void handleChildProcess(char *userInputStr, int comNum, char **comAdd);
-
-void printChildStatistics(double elapsedTime, int *ru_minflt, int *ru_majflt);
+void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after);
 
 void nullTerminateStr(char *str);
 
-void splitByDelim(char *str, char *delim);
-
 int strToInt(char *str);
+
+int splitInputArgs(char **splitStr, char *str);
 
 #endif
