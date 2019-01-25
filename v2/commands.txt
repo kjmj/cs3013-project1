@@ -1,0 +1,32 @@
+a
+ls -a -al
+0
+1
+2
+-al -l
+/
+c
+/home
+p
+3
+a
+ls -al --color=auto
+4
+2
+
+
+0
+2
+--color=auto
+
+0
+2
+
+/home
+0
+badInput
+12
+2
+
+
+more bad input
