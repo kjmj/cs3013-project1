@@ -2,6 +2,13 @@
 
 int IS_PIPED_INPUT; // global variable that stores whether input is from terminal or piped in from file
 
+
+struct backgroundProcess {
+    struct timeval startTime;
+};
+
+struct backgroundProcess RUNNING_BACKGROUND_PROCESSES[MAX_BACKGROUND_PROCESSES];
+
 int main(int argc, char **argv) {
     char **comAdd = malloc(MAX_USER_ADDED_COMMANDS); // holds user added commands
     int *comNum = (int *) malloc(sizeof(int)); // number of user added commands
@@ -170,7 +177,10 @@ int runMDC(int *comNum, char **comAdd) {
  */
 void checkChildren() {
     while(1) {
-        pid_t wpid = waitpid(-1, NULL, WNOHANG);
+        struct rusage stats;
+
+        pid_t wpid = wait3(NULL, WNOHANG, &stats);
+
 
         if(wpid == -1) {
             // error, no children (probably)
@@ -190,6 +200,19 @@ void checkChildren() {
              * Process ID: 12345
              * [ Output ]
              */
+
+            // end timer
+            struct timeval t2;
+            gettimeofday(&t2, NULL);
+
+//            double elapsedTime;
+//
+//
+//            // compute elapsed time in ms
+//            elapsedTime = (t2.tv_sec - THIS_PROCESS.tv_sec) * 1000.0;      // sec to ms
+//            elapsedTime += (t2.tv_usec - THIS_PROCESS.tv_usec) / 1000.0;   // tack on the us
+//
+//            printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
             continue;
         }
     }
@@ -203,7 +226,8 @@ void runBackground(char **args) {
     // fork to create a child process
     pid_t cpid = fork();
     if (cpid > 0) {
-        waitpid(cpid, NULL, WNOHANG);
+//        waitpid(cpid, NULL, WNOHANG);
+        wait3(NULL, WNOHANG, NULL);
     } else if (cpid == 0) {
         // try to execute the command
         if (execvp(args[0], args) == -1) {
@@ -260,7 +284,8 @@ void printInitialMessage(int *comNum, char **comAdd) {
     printf("   a. add command : Adds a new command to the menu.\n"
            "   c. change directory : Changes process working directory\n"
            "   e. exit : Leave Mid-Day Commander\n"
-           "   p. pwd : Prints working directory\n");
+           "   p. pwd : Prints working directory\n"
+           "   r. running processes : Print list of running processes\n");
     printf("Option?: ");
 }
 
@@ -418,8 +443,13 @@ void handleParentProcess(pid_t cpid) {
     elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
     elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
 
+
+    // get some statistics about the page faults during execution
+    long ru_minflt = after.ru_minflt - before.ru_minflt;
+    long ru_majflt = after.ru_majflt - before.ru_majflt;
+
     // print statistics about child process execution
-    printChildStatistics(elapsedTime, &before, &after);
+    printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
 }
 
 /**
@@ -429,13 +459,27 @@ void handleParentProcess(pid_t cpid) {
  * @param after filled out rusage struct that was created after fork
  * @return void, put prints text to stdout
  */
-void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after) {
-    // print out child usage statistics
+//void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after) {
+//    // print out child usage statistics
+//    printf("\n");
+//    printf("-- Statistics ---\n");
+//    printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
+//    printf("Page Faults: %lu\n", (*after).ru_minflt - (*before).ru_minflt);
+//    printf("Page Faults (reclaimed): %lu\n", (*after).ru_majflt - (*before).ru_majflt);
+//    printf("\n");
+//}
+/**
+ * Print statistics about child execution including elapsed time and page faults
+ * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
+ * @param ru_minflt The number of ru_minflt for the child
+ * @param ru_majflt The number of ru_majflt for the child
+ */
+void printChildStatistics(double elapsedTime, long ru_minflt, long ru_majflt) {
     printf("\n");
     printf("-- Statistics ---\n");
     printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
-    printf("Page Faults: %lu\n", (*after).ru_minflt - (*before).ru_minflt);
-    printf("Page Faults (reclaimed): %lu\n", (*after).ru_majflt - (*before).ru_majflt);
+    printf("Page Faults: %lu\n", ru_minflt);
+    printf("Page Faults (reclaimed): %lu\n", ru_majflt);
     printf("\n");
 }
 

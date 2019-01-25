@@ -20,6 +20,7 @@
 #define BUFF_SIZE 256
 #define INITIAL_NUMBER_OF_COMMANDS 3
 #define MAX_USER_ADDED_COMMANDS 50
+#define MAX_BACKGROUND_PROCESSES 100
 
 int runMDC(int *comNum, char **comAdd);
 
@@ -31,7 +32,8 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd);
 
 void handleParentProcess(pid_t cpid);
 
-void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after);
+//void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after);
+void printChildStatistics(double elapsedTime, long ru_minflt, long ru_majflt);
 
 void nullTerminateStr(char *str);
 
