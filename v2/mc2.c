@@ -156,7 +156,9 @@ int runMDC(int *comNum, char **comAdd) {
     } else{
         runForeground(args);
     }
-    waitCheck();
+
+    // check children, might not really be neccecary to call this here
+    checkChildren();
 
     return 0;
 }
@@ -201,7 +203,7 @@ void runBackground(char **args) {
     // fork to create a child process
     pid_t cpid = fork();
     if (cpid > 0) {
-        pid_t w = waitpid(cpid, NULL, WNOHANG);
+        waitpid(cpid, NULL, WNOHANG);
     } else if (cpid == 0) {
         // try to execute the command
         if (execvp(args[0], args) == -1) {
@@ -377,7 +379,7 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         // TODO Print the list of currently running background tasks
         /**
          * The command should display at least the pid, the command itself, and the corresponding number
-         * (showing order in which processes were initiated) for each background process run by your program that is still running. 
+         * (showing order in which processes were initiated) for each background process run by your program that is still running.
          */
     }
 
