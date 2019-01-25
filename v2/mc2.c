@@ -209,8 +209,8 @@ void checkChildren() {
 //
 //
 //            // compute elapsed time in ms
-//            elapsedTime = (t2.tv_sec - THIS_PROCESS.tv_sec) * 1000.0;      // sec to ms
-//            elapsedTime += (t2.tv_usec - THIS_PROCESS.tv_usec) / 1000.0;   // tack on the us
+//            elapsedTime = (t2.tv_sec - RUNNING_BACKGROUND_PROCESSES[   index    ].startTime.tv_sec) * 1000.0;      // sec to ms
+//            elapsedTime += (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[    index     ].startTime.THIS_PROCESS.tv_usec) / 1000.0;   // tack on the us
 //
 //            printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
             continue;
@@ -452,22 +452,6 @@ void handleParentProcess(pid_t cpid) {
     printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
 }
 
-/**
- * Print statistics about child execution including elapsed time and page faults
- * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
- * @param before filled out rusage struct that was created before fork
- * @param after filled out rusage struct that was created after fork
- * @return void, put prints text to stdout
- */
-//void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after) {
-//    // print out child usage statistics
-//    printf("\n");
-//    printf("-- Statistics ---\n");
-//    printf("Elapsed Time: %.2lf milliseconds\n", elapsedTime);
-//    printf("Page Faults: %lu\n", (*after).ru_minflt - (*before).ru_minflt);
-//    printf("Page Faults (reclaimed): %lu\n", (*after).ru_majflt - (*before).ru_majflt);
-//    printf("\n");
-//}
 /**
  * Print statistics about child execution including elapsed time and page faults
  * @param elapsedTime Elapsed time that the MDC shell has been running in milliseconds
