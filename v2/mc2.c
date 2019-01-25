@@ -343,27 +343,7 @@ void handleParentProcess(pid_t cpid) {
             break;
         }
     }
-
-
-    /**
-     * this code loops
-     * if the child changed sates, we break the loop, print stats, and continue like normal, perfect!
-     *
-     * however, we seem to get hung up. why?
-     * well we esentially get stuck in that infinite loop, right?
-     * so we need to return from the loop if the child hasnt finished
-     * but, when we return, we get to a point where we dont ever execv
-     *
-     * the command is executing
-     * and the while loop keeeeeeps running, it doesnt exit until the child changess states
-     *
-     * we need it to execute and return only when the child hasnt changed states
-     *
-     *
-     * if we break from w == 0, it seems to just jump out of the function and never call back into it
-     * which makes sense because we never call the function again
-     *
-     */
+    
 
 
     printf("after child return\n");
