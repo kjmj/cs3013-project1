@@ -39,4 +39,10 @@ int strToInt(char *str);
 
 int splitInputArgs(char **splitStr, char *str);
 
+
+
+void runForeground(char **args);
+void runBackground(char **args);
+void checkChildren();
+
 #endif

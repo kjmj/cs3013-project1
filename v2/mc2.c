@@ -28,6 +28,7 @@ int main(int argc, char **argv) {
  * @return 0 on success, -1 on failure
  */
 int runMDC(int *comNum, char **comAdd) {
+    int isBackground = 0; // is the current command to execute a background one?
 
     // Print message explaining how MDC works to the user
     printInitialMessage(comNum, comAdd);
@@ -37,6 +38,10 @@ int runMDC(int *comNum, char **comAdd) {
 
     char *f = fgets(userInputStr, sizeof userInputStr, stdin);
 
+    // Check to see if any children processes have completed
+    checkChildren();
+
+    // now try to process users command
     if (strlen(userInputStr) > 0) {
         nullTerminateStr(userInputStr);
     }
@@ -133,40 +138,100 @@ int runMDC(int *comNum, char **comAdd) {
             splitInputArgs(args, buffP);
         }
     } else if (userInputInt < *comNum + INITIAL_NUMBER_OF_COMMANDS) { // user added command
+
         char *fullCommand = malloc(BUFF_SIZE);
         strcpy(fullCommand, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
+
+        // check if it is a background task
+        if(fullCommand[strlen(fullCommand) - 1] == '&') {
+            nullTerminateStr(fullCommand); // to chop off the '&'
+            isBackground = 1;
+        }
 
         splitInputArgs(args, fullCommand);
     }
 
+    if(isBackground) {
+        runBackground(args);
+    } else{
+        runForeground(args);
+    }
+    waitCheck();
+
+    return 0;
+}
+
+
+/**
+ * This function will be used to determine if any children have finished execution.
+ * If they have, then it prints out the statistics for the finished children.
+ */
+void checkChildren() {
+    while(1) {
+        pid_t wpid = waitpid(-1, NULL, WNOHANG);
+
+        if(wpid == -1) {
+            // error, no children (probably)
+//            perror("while waiting");
+            break;
+        } else if (wpid == 0) {
+            // children exist, no return yet
+//            printf("children exist, no return yet\n");
+            break;
+        }
+        if (wpid > 0) {
+            /** TODO
+             * print statistics for the completed child here
+             *
+             * His example:
+             * -- Job Complete [1] --
+             * Process ID: 12345
+             * [ Output ]
+             */
+            continue;
+        }
+    }
+}
+
+/**
+ * This function runs a child process and *does not* wait until its completion
+ * @param args
+ */
+void runBackground(char **args) {
     // fork to create a child process
     pid_t cpid = fork();
-
-    printf("%d\n", cpid);
     if (cpid > 0) {
-        handleParentProcess(cpid);
-
-        // when we get back here, the child has finished execution
+        pid_t w = waitpid(cpid, NULL, WNOHANG);
     } else if (cpid == 0) {
-
-        printf("executing command\n");
-        char *command = args[0];
-
-        // create the executable name
-        char executableName[BUFF_SIZE];
-        strcpy(executableName, "./");
-        strcat(executableName, args[0]);
-        args[0] = executableName;
-
         // try to execute the command
-        if (execvp(command, args) == -1) {
+        if (execvp(args[0], args) == -1) {
             perror("error in execvp()");
         }
     } else {
         printf("Error, failed to fork\n");
         exit(EXIT_FAILURE);
     }
-    return 0;
+}
+
+/**
+ * This function runs a child process and waits until its completion
+ * @param args
+ */
+void runForeground(char **args) {
+    // fork to create a child process
+    pid_t cpid = fork();
+    if (cpid > 0) {
+        handleParentProcess(cpid);
+        // when we get back here, the child has finished execution
+    } else if (cpid == 0) {
+        // try to execute the command
+        if (execvp(args[0], args) == -1) {
+            perror("error in execvp()");
+        }
+    } else {
+        printf("Error, failed to fork\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 /**
@@ -208,7 +273,7 @@ int isValidInput(char *userInputString, int comNum) {
 
     // First check the case that input is a string
     if (!strcmp(userInputString, "a") || !strcmp(userInputString, "c") || !strcmp(userInputString, "e") ||
-        !strcmp(userInputString, "p")) {
+        !strcmp(userInputString, "p") || !strcmp(userInputString, "r")) {
         return 1;
     }
 
@@ -288,6 +353,10 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 
         return 0;
     } else if (!strcmp(userInputStr, "e")) {
+        /**
+         * TODO
+         * if there are background processes still running, dont let the user exit the program
+         */
         printf("Logging you out, Commander.\n");
         exit(EXIT_SUCCESS);
 
@@ -304,7 +373,14 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         }
 
         return 0;
+    }else if (!strcmp(userInputStr, "r")) {
+        // TODO Print the list of currently running background tasks
+        /**
+         * The command should display at least the pid, the command itself, and the corresponding number
+         * (showing order in which processes were initiated) for each background process run by your program that is still running. 
+         */
     }
+
 
     return -1;
 }
@@ -326,46 +402,9 @@ void handleParentProcess(pid_t cpid) {
     struct rusage before;
     getrusage(RUSAGE_CHILDREN, &before);
 
-    printf("before child return\n");
     // wait for child to return
-    while(1) {
-//        printf("%d\n", cpid);
-        pid_t w = waitpid(-1, NULL, WNOHANG);
-//        printf("%d\n", w);
+    waitpid(cpid, NULL, 0);
 
-        if(w == 0 ) {
-            printf("child hasnt changed states\n");
-            // children hasnt changed states
-            break;
-        } else {
-            // child has changed state
-            printf("child has changed state, pid of %d\n", w);
-            break;
-        }
-    }
-    
-
-
-    printf("after child return\n");
-
-
-    /**
-     *
-     * Either of these functions can be called with the WNOHANG option, which causes the wait() function to
-     * not block but rather return with an error code (e.g., “nobody is ready to be waited on yet”).
-     *
-     * A suggested approach to handling background tasks is as follows.
-     *
-     * After forking a child process to invoke a background command (i.e., with a ‘&’ character at the end),
-     * go into a loop using wait3(WNOHANG) to wait for any child to finish. If wait3() returns information
-     * about a child process that has finished, print its statistics and repeat the loop. However, if wait3()
-     * indicates that no child process has finished lately, exit the loop and prompt for the next command.
-     * In the case that a command is not a background process (i.e., does not end with a ‘&’ character), then
-     * you should use a wait3() loop without the WNOHANG argument. This will pick up any previous background
-     * commands that may have completed. Once the non-background task has been waited for, loop again using
-     * wait3(WNOHANG) to pick up any remaining tasks that have finished. When wait3(WNOHANG) returns with an
-     * error, then prompt for the next command.
-     */
     // track stats after waiting
     struct rusage after;
     getrusage(RUSAGE_CHILDREN, &after);
