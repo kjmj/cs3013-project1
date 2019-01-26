@@ -8,3 +8,10 @@ To run it, type "./mc2"
 
 If you want to pipe in commands from a file:
 ./mc2 < file.txt
+
+Data Structure & Algorithm
+To store the list of background process, we used a global static array to store the processes.
+The background process are created as a struct process id, numInQueue, commandName, startTime.
+We store the process into the array when fork() a background process. We remove certain process
+in the array by moving every element after that process forward by one position when the process
+is completed.
