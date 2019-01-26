@@ -48,7 +48,7 @@ int runMDC(int *comNum, char **comAdd) {
     char userInputStr[BUFF_SIZE];
     char *fullCommand = malloc(BUFF_SIZE); // used to store the custom command that the user enters
 
-    char *f = fgets(userInputStr, sizeof (userInputStr - 1), stdin);
+    char *f = fgets(userInputStr, sizeof(userInputStr - 1), stdin);
 
     // Check to see if any children processes have completed
     checkChildren();
@@ -154,7 +154,7 @@ int runMDC(int *comNum, char **comAdd) {
         strcpy(fullCommand, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
 
         // check if it is a background task
-        if(fullCommand[strlen(fullCommand) - 1] == '&') {
+        if (fullCommand[strlen(fullCommand) - 1] == '&') {
             nullTerminateStr(fullCommand); // to chop off the '&'
             isBackground = 1;
         }
@@ -162,9 +162,9 @@ int runMDC(int *comNum, char **comAdd) {
         splitInputArgs(args, fullCommand);
     }
 
-    if(isBackground) {
+    if (isBackground) {
         runBackground(args, &fullCommand);
-    } else{
+    } else {
         runForeground(args);
     }
 
@@ -177,13 +177,13 @@ int runMDC(int *comNum, char **comAdd) {
  * If they have, then it prints out the statistics for the finished children.
  */
 void checkChildren() {
-    while(1) {
+    while (1) {
         struct rusage stats;
 
         pid_t wpid = wait3(NULL, WNOHANG, &stats);
 
 
-        if(wpid == -1) {
+        if (wpid == -1) {
             // error, no children (probably)
 //            perror("while waiting");
             break;
@@ -203,8 +203,8 @@ void checkChildren() {
             int index = 0;
 
             // try to get the index that this process is in the queue
-            for(int i = 0; i < numBackgroundProcesses; i++) {
-                if(RUNNING_BACKGROUND_PROCESSES[i].pid == wpid) {
+            for (int i = 0; i < numBackgroundProcesses; i++) {
+                if (RUNNING_BACKGROUND_PROCESSES[i].pid == wpid) {
                     index = i;
                 }
             }
@@ -216,13 +216,14 @@ void checkChildren() {
 
             // compute elapsed time in ms
             elapsedTime = (t2.tv_sec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_sec) * 1000.0;      // sec to ms
-            elapsedTime += (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_usec) / 1000.0;   // tack on the us
+            elapsedTime +=
+                    (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_usec) / 1000.0;   // tack on the us
 
             printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
 
             // now remove it from the array
             int i;
-            for(i = index; i < numBackgroundProcesses - 1; i++) {
+            for (i = index; i < numBackgroundProcesses - 1; i++) {
                 RUNNING_BACKGROUND_PROCESSES[i] = RUNNING_BACKGROUND_PROCESSES[i + 1];
             }
             numBackgroundProcesses--;
@@ -407,11 +408,18 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 
         return 0;
     } else if (!strcmp(userInputStr, "e")) {
-
-        printf("Logging you out, Commander.\n");
-        exit(EXIT_SUCCESS);
-
-        return 0;
+        /**
+         * if there are background processes still running, dont let the user exit the program
+         */
+        if (numBackgroundProcesses != 0) {
+            // there are processes still running
+            printf("Command can not log out. There are still background processes running.\n");
+            return 0;
+        } else {
+            printf("Logging you out, Commander.\n");
+            exit(EXIT_SUCCESS);
+        }
+        return -1;
     } else if (!strcmp(userInputStr, "p")) {
         printf("-- Current Directory --\n");
         char cwd[BUFF_SIZE];
@@ -422,17 +430,20 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         } else {
             printf("Directory: %s\n\n", cwd);
         }
-
         return 0;
-    }else if (!strcmp(userInputStr, "r")) {
-        // TODO Print the list of currently running background tasks
+    } else if (!strcmp(userInputStr, "r")) {
         /**
          * The command should display at least the pid, the command itself, and the corresponding number
          * (showing order in which processes were initiated) for each background process run by your program that is still running.
          */
+        for (int i = 0; i < numBackgroundProcesses; i++) {
+            printf("-- Background Processes --\n");
+            printf("Process ID: %d \n", RUNNING_BACKGROUND_PROCESSES[i].pid);
+            printf("Program Order Number: %d \n", i + 1);
+            printf("Command Name:%s\n", RUNNING_BACKGROUND_PROCESSES[i].commandName);
+        }
+        return 0;
     }
-
-
     return -1;
 }
 
