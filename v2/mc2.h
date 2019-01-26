@@ -32,7 +32,6 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd);
 
 void handleParentProcess(pid_t cpid);
 
-//void printChildStatistics(double elapsedTime, struct rusage *before, struct rusage *after);
 void printChildStatistics(double elapsedTime, long ru_minflt, long ru_majflt);
 
 void nullTerminateStr(char *str);
@@ -44,7 +43,7 @@ int splitInputArgs(char **splitStr, char *str);
 
 
 void runForeground(char **args);
-void runBackground(char **args);
+void runBackground(char **args, char **fullCommand);
 void checkChildren();
 
 #endif

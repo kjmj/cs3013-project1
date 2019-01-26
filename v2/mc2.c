@@ -4,10 +4,14 @@ int IS_PIPED_INPUT; // global variable that stores whether input is from termina
 
 
 struct backgroundProcess {
+    pid_t pid;
+    int numInQueue;
+    char commandName[50];
     struct timeval startTime;
 };
 
 struct backgroundProcess RUNNING_BACKGROUND_PROCESSES[MAX_BACKGROUND_PROCESSES];
+int numBackgroundProcesses = 0; // the number of background processes currently running
 
 int main(int argc, char **argv) {
     char **comAdd = malloc(MAX_USER_ADDED_COMMANDS); // holds user added commands
@@ -42,8 +46,9 @@ int runMDC(int *comNum, char **comAdd) {
 
     // Read in user input
     char userInputStr[BUFF_SIZE];
+    char *fullCommand = malloc(BUFF_SIZE); // used to store the custom command that the user enters
 
-    char *f = fgets(userInputStr, sizeof userInputStr, stdin);
+    char *f = fgets(userInputStr, sizeof (userInputStr - 1), stdin);
 
     // Check to see if any children processes have completed
     checkChildren();
@@ -146,7 +151,6 @@ int runMDC(int *comNum, char **comAdd) {
         }
     } else if (userInputInt < *comNum + INITIAL_NUMBER_OF_COMMANDS) { // user added command
 
-        char *fullCommand = malloc(BUFF_SIZE);
         strcpy(fullCommand, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
 
         // check if it is a background task
@@ -159,13 +163,10 @@ int runMDC(int *comNum, char **comAdd) {
     }
 
     if(isBackground) {
-        runBackground(args);
+        runBackground(args, &fullCommand);
     } else{
         runForeground(args);
     }
-
-    // check children, might not really be neccecary to call this here
-    checkChildren();
 
     return 0;
 }
@@ -192,27 +193,40 @@ void checkChildren() {
             break;
         }
         if (wpid > 0) {
-            /** TODO
-             * print statistics for the completed child here
-             *
-             * His example:
-             * -- Job Complete [1] --
-             * Process ID: 12345
-             * [ Output ]
-             */
 
             // end timer
             struct timeval t2;
             gettimeofday(&t2, NULL);
 
-//            double elapsedTime;
-//
-//
-//            // compute elapsed time in ms
-//            elapsedTime = (t2.tv_sec - RUNNING_BACKGROUND_PROCESSES[   index    ].startTime.tv_sec) * 1000.0;      // sec to ms
-//            elapsedTime += (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[    index     ].startTime.THIS_PROCESS.tv_usec) / 1000.0;   // tack on the us
-//
-//            printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
+            double elapsedTime;
+
+            int index = 0;
+
+            // try to get the index that this process is in the queue
+            for(int i = 0; i < numBackgroundProcesses; i++) {
+                if(RUNNING_BACKGROUND_PROCESSES[i].pid == wpid) {
+                    index = i;
+                }
+            }
+
+            // print stats about the job that just finished
+            printf("-- Job Complete [%d] --\n", RUNNING_BACKGROUND_PROCESSES[index].numInQueue);
+            printf("Process ID: %d\n", wpid);
+            printf("[ Output ]\n");
+
+            // compute elapsed time in ms
+            elapsedTime = (t2.tv_sec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_sec) * 1000.0;      // sec to ms
+            elapsedTime += (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_usec) / 1000.0;   // tack on the us
+
+            printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
+
+            // now remove it from the array
+            int i;
+            for(i = index; i < numBackgroundProcesses - 1; i++) {
+                RUNNING_BACKGROUND_PROCESSES[i] = RUNNING_BACKGROUND_PROCESSES[i + 1];
+            }
+            numBackgroundProcesses--;
+
             continue;
         }
     }
@@ -220,15 +234,28 @@ void checkChildren() {
 
 /**
  * This function runs a child process and *does not* wait until its completion
- * @param args
+ * @param args List of arguments to be executed
+ * @param fullCommand The full command that the user wants to run
  */
-void runBackground(char **args) {
+void runBackground(char **args, char **fullCommand) {
     // fork to create a child process
     pid_t cpid = fork();
+
+    struct timeval t1;
+    gettimeofday(&t1, NULL);
+
+    // copy this childs data into our array
+    numBackgroundProcesses++;
+    strcpy(RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].commandName, *fullCommand);
+    RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].pid = cpid;
+    RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].startTime = t1;
+    RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].numInQueue = numBackgroundProcesses;
+
+
     if (cpid > 0) {
-//        waitpid(cpid, NULL, WNOHANG);
         wait3(NULL, WNOHANG, NULL);
     } else if (cpid == 0) {
+
         // try to execute the command
         if (execvp(args[0], args) == -1) {
             perror("error in execvp()");
@@ -241,7 +268,7 @@ void runBackground(char **args) {
 
 /**
  * This function runs a child process and waits until its completion
- * @param args
+ * @param args List of arguments to be executed
  */
 void runForeground(char **args) {
     // fork to create a child process
@@ -380,10 +407,7 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 
         return 0;
     } else if (!strcmp(userInputStr, "e")) {
-        /**
-         * TODO
-         * if there are background processes still running, dont let the user exit the program
-         */
+
         printf("Logging you out, Commander.\n");
         exit(EXIT_SUCCESS);
 
