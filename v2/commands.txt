@@ -1,32 +1,20 @@
 a
-ls -a -al
-0
-1
-2
--al -l
-/
-c
-/home
-p
-3
+sleep 3 &
 a
-ls -al --color=auto
+sleep 5 &
+a
+sleep 2
+r
 4
-2
-
-
+r
+5
+3
+r
+3
 0
 2
---color=auto
-
-0
-2
-
+-l
 /home
-0
-badInput
-12
-2
-
-
-more bad input
+5
+5
+r

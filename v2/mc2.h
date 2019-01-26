@@ -24,6 +24,12 @@
 
 int runMDC(int *comNum, char **comAdd);
 
+void checkChildren();
+
+void runForeground(char **args);
+
+void runBackground(char **args, char *fullCommand);
+
 void printInitialMessage(int *comNum, char **comAdd);
 
 int isValidInput(char *userInputString, int comNum);
@@ -39,11 +45,5 @@ void nullTerminateStr(char *str);
 int strToInt(char *str);
 
 int splitInputArgs(char **splitStr, char *str);
-
-
-
-void runForeground(char **args);
-void runBackground(char **args, char **fullCommand);
-void checkChildren();
 
 #endif

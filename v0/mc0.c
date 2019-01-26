@@ -4,12 +4,10 @@ int main(int argc, char **argv) {
 
     // Run Mid-Day Commander simulation until user exits using (control + c)
     while (1) {
-        if (runMDC() == -1) {
-            break;
+        if (runMDC()) {
+            continue;
         }
     }
-
-    return EXIT_FAILURE;
 }
 
 /**
@@ -95,7 +93,7 @@ int runMDC() {
     // verify user input
     if (!isValidInput(userInput)) {
         printf("Invalid input, MDC does not have a command associated with the input \"%s\".\n", tempBuff);
-        return -1;
+//        return -1;
     }
 
     // fork to create a child process

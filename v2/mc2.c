@@ -2,7 +2,6 @@
 
 int IS_PIPED_INPUT; // global variable that stores whether input is from terminal or piped in from file
 
-
 struct backgroundProcess {
     pid_t pid;
     int numInQueue;
@@ -10,6 +9,7 @@ struct backgroundProcess {
     struct timeval startTime;
 };
 
+// This is used to store out background processes when they are executing
 struct backgroundProcess RUNNING_BACKGROUND_PROCESSES[MAX_BACKGROUND_PROCESSES];
 int numBackgroundProcesses = 0; // the number of background processes currently running
 
@@ -47,8 +47,10 @@ int runMDC(int *comNum, char **comAdd) {
     // Read in user input
     char userInputStr[BUFF_SIZE];
     char *fullCommand = malloc(BUFF_SIZE); // used to store the custom command that the user enters
+    // Check to see if any children processes have completed
+    checkChildren();
 
-    char *f = fgets(userInputStr, sizeof(userInputStr - 1), stdin);
+    char *f = fgets(userInputStr, sizeof (userInputStr - 1), stdin);
 
     // Check to see if any children processes have completed
     checkChildren();
@@ -154,7 +156,7 @@ int runMDC(int *comNum, char **comAdd) {
         strcpy(fullCommand, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
 
         // check if it is a background task
-        if (fullCommand[strlen(fullCommand) - 1] == '&') {
+        if(fullCommand[strlen(fullCommand) - 1] == '&') {
             nullTerminateStr(fullCommand); // to chop off the '&'
             isBackground = 1;
         }
@@ -162,9 +164,19 @@ int runMDC(int *comNum, char **comAdd) {
         splitInputArgs(args, fullCommand);
     }
 
-    if (isBackground) {
-        runBackground(args, &fullCommand);
-    } else {
+
+    // Depending on the input, run the command in the background or foreground
+    if(isBackground) {
+        char *temp = malloc(BUFF_SIZE);
+        strcpy(temp, comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
+
+        runBackground(args, temp);
+
+        // print statistics about that command
+        printf("-- Command: %s --\n", comAdd[userInputInt - INITIAL_NUMBER_OF_COMMANDS]);
+        printf("[%d] %d\n\n", RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].numInQueue, RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].pid);
+
+    } else{
         runForeground(args);
     }
 
@@ -177,19 +189,17 @@ int runMDC(int *comNum, char **comAdd) {
  * If they have, then it prints out the statistics for the finished children.
  */
 void checkChildren() {
-    while (1) {
+    while(1) {
         struct rusage stats;
 
         pid_t wpid = wait3(NULL, WNOHANG, &stats);
 
 
-        if (wpid == -1) {
+        if(wpid == -1) {
             // error, no children (probably)
-//            perror("while waiting");
             break;
         } else if (wpid == 0) {
             // children exist, no return yet
-//            printf("children exist, no return yet\n");
             break;
         }
         if (wpid > 0) {
@@ -203,8 +213,8 @@ void checkChildren() {
             int index = 0;
 
             // try to get the index that this process is in the queue
-            for (int i = 0; i < numBackgroundProcesses; i++) {
-                if (RUNNING_BACKGROUND_PROCESSES[i].pid == wpid) {
+            for(int i = 0; i < numBackgroundProcesses; i++) {
+                if(RUNNING_BACKGROUND_PROCESSES[i].pid == wpid) {
                     index = i;
                 }
             }
@@ -216,14 +226,13 @@ void checkChildren() {
 
             // compute elapsed time in ms
             elapsedTime = (t2.tv_sec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_sec) * 1000.0;      // sec to ms
-            elapsedTime +=
-                    (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_usec) / 1000.0;   // tack on the us
+            elapsedTime += (t2.tv_usec - RUNNING_BACKGROUND_PROCESSES[index].startTime.tv_usec) / 1000.0;   // tack on the us
 
             printChildStatistics(elapsedTime, stats.ru_minflt, stats.ru_majflt);
 
             // now remove it from the array
             int i;
-            for (i = index; i < numBackgroundProcesses - 1; i++) {
+            for(i = index; i < numBackgroundProcesses - 1; i++) {
                 RUNNING_BACKGROUND_PROCESSES[i] = RUNNING_BACKGROUND_PROCESSES[i + 1];
             }
             numBackgroundProcesses--;
@@ -238,7 +247,7 @@ void checkChildren() {
  * @param args List of arguments to be executed
  * @param fullCommand The full command that the user wants to run
  */
-void runBackground(char **args, char **fullCommand) {
+void runBackground(char **args, char *fullCommand) {
     // fork to create a child process
     pid_t cpid = fork();
 
@@ -247,11 +256,10 @@ void runBackground(char **args, char **fullCommand) {
 
     // copy this childs data into our array
     numBackgroundProcesses++;
-    strcpy(RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].commandName, *fullCommand);
+    strcpy(RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].commandName, fullCommand);
     RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].pid = cpid;
     RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].startTime = t1;
     RUNNING_BACKGROUND_PROCESSES[numBackgroundProcesses - 1].numInQueue = numBackgroundProcesses;
-
 
     if (cpid > 0) {
         wait3(NULL, WNOHANG, NULL);
@@ -276,7 +284,6 @@ void runForeground(char **args) {
     pid_t cpid = fork();
     if (cpid > 0) {
         handleParentProcess(cpid);
-        // when we get back here, the child has finished execution
     } else if (cpid == 0) {
         // try to execute the command
         if (execvp(args[0], args) == -1) {
@@ -288,6 +295,47 @@ void runForeground(char **args) {
     }
 }
 
+
+/**
+ * Handle the parent process
+ * @param cpid Process ID of the child
+ */
+void handleParentProcess(pid_t cpid) {
+
+    // used to calculate elapsed time of child process
+    struct timeval t1, t2;
+    double elapsedTime;
+
+    // start timer
+    gettimeofday(&t1, NULL);
+
+    // track stats before child has returned
+    struct rusage before;
+    getrusage(RUSAGE_CHILDREN, &before);
+
+    // wait for child to return
+    waitpid(cpid, NULL, 0);
+
+    // track stats after waiting for child
+    struct rusage after;
+    getrusage(RUSAGE_CHILDREN, &after);
+
+    // child has returned, so stop the timer
+    gettimeofday(&t2, NULL);
+
+    // compute elapsed time in ms
+    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
+    elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
+
+
+    // get some statistics about the page faults during execution
+    long ru_minflt = after.ru_minflt - before.ru_minflt;
+    long ru_majflt = after.ru_majflt - before.ru_majflt;
+
+    // print statistics about child process execution
+    printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
+}
+
 /**
  * Prints the initial message to the user explaining how the MDC works
  * @param comNum pointer to the number of user added commands
@@ -297,7 +345,7 @@ void runForeground(char **args) {
 void printInitialMessage(int *comNum, char **comAdd) {
 
     // Print initial message/options
-    printf("===== Mid-Day Commander, v0 =====\n");
+    printf("===== Mid-Day Commander, v2 =====\n");
     printf("G’day, Commander! What command would you like to run?\n"
            "   0. whoami  : Prints out the result of the whoamicommand\n"
            "   1. last    : Prints out the result of the last command\n"
@@ -408,18 +456,17 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
 
         return 0;
     } else if (!strcmp(userInputStr, "e")) {
-        /**
-         * if there are background processes still running, dont let the user exit the program
-         */
+
         if (numBackgroundProcesses != 0) {
             // there are processes still running
-            printf("Command can not log out. There are still background processes running.\n");
+            printf("MDC can not log out. There are still background processes running.\n\n");
             return 0;
         } else {
             printf("Logging you out, Commander.\n");
             exit(EXIT_SUCCESS);
         }
         return -1;
+
     } else if (!strcmp(userInputStr, "p")) {
         printf("-- Current Directory --\n");
         char cwd[BUFF_SIZE];
@@ -430,62 +477,26 @@ int handlePersistentCommands(char *userInputStr, int *comNum, char **comAdd) {
         } else {
             printf("Directory: %s\n\n", cwd);
         }
+
         return 0;
-    } else if (!strcmp(userInputStr, "r")) {
-        /**
-         * The command should display at least the pid, the command itself, and the corresponding number
-         * (showing order in which processes were initiated) for each background process run by your program that is still running.
-         */
+    }else if (!strcmp(userInputStr, "r")) {
+
+        printf("-- Background Processes --\n");
         for (int i = 0; i < numBackgroundProcesses; i++) {
-            printf("-- Background Processes --\n");
+            printf("Background Process Number: [%d] \n", RUNNING_BACKGROUND_PROCESSES[i].numInQueue);
             printf("Process ID: %d \n", RUNNING_BACKGROUND_PROCESSES[i].pid);
-            printf("Program Order Number: %d \n", i + 1);
-            printf("Command Name:%s\n", RUNNING_BACKGROUND_PROCESSES[i].commandName);
+            printf("Command Name: %s\n", RUNNING_BACKGROUND_PROCESSES[i].commandName);
+            printf("\n");
+
         }
+        printf("\n");
         return 0;
     }
+
+
     return -1;
 }
 
-/**
- * Handle the parent process
- * @param cpid Process ID of the child
- */
-void handleParentProcess(pid_t cpid) {
-
-    // used to calculate elapsed time of child process
-    struct timeval t1, t2;
-    double elapsedTime;
-
-    // start timer
-    gettimeofday(&t1, NULL);
-
-    // track stats before waiting
-    struct rusage before;
-    getrusage(RUSAGE_CHILDREN, &before);
-
-    // wait for child to return
-    waitpid(cpid, NULL, 0);
-
-    // track stats after waiting
-    struct rusage after;
-    getrusage(RUSAGE_CHILDREN, &after);
-
-    // child has returned, so stop the timer
-    gettimeofday(&t2, NULL);
-
-    // compute elapsed time in ms
-    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
-    elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // tack on the us
-
-
-    // get some statistics about the page faults during execution
-    long ru_minflt = after.ru_minflt - before.ru_minflt;
-    long ru_majflt = after.ru_majflt - before.ru_majflt;
-
-    // print statistics about child process execution
-    printChildStatistics(elapsedTime, ru_minflt, ru_majflt);
-}
 
 /**
  * Print statistics about child execution including elapsed time and page faults

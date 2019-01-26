@@ -174,7 +174,7 @@ int runMDC(int *comNum, char **comAdd) {
 void printInitialMessage(int *comNum, char **comAdd) {
 
     // Print initial message/options
-    printf("===== Mid-Day Commander, v0 =====\n");
+    printf("===== Mid-Day Commander, v1 =====\n");
     printf("G’day, Commander! What command would you like to run?\n"
            "   0. whoami  : Prints out the result of the whoamicommand\n"
            "   1. last    : Prints out the result of the last command\n"
